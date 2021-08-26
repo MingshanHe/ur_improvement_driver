@@ -72,6 +72,11 @@
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
 
+// Record
+#include <memory>
+#include <fstream>
+#include <streambuf>
+
 class RosWrapper {
 protected:
 	UrDriver robot_;
@@ -118,6 +123,7 @@ protected:
 	std::thread* ros_control_thread_;
 	boost::shared_ptr<ros_control_ur::UrHardwareInterface> hardware_interface_;
 	boost::shared_ptr<controller_manager::ControllerManager> controller_manager_;
+	std::ofstream oFile;
 
 public:
 	RosWrapper(std::string host, int reverse_port) :
@@ -145,7 +151,7 @@ public:
 			x_.M.Identity();
 			x_dot_.p.Zero();
 			x_dot_.M.Identity();
-
+			oFile.open("/home/robot/ur5_admittance_control/src/Admittance_Controller/ur5_joint_record_state/data/1_.csv", std::ios::out | std::ios::trunc);
 			ROS_INFO("Finished Cartesian Velocity Controller Base init");
 		}
 
@@ -282,6 +288,7 @@ public:
 		}
 	}
 
+	~RosWrapper(){oFile.close();}
 	void halt()
 	{
 		robot_.dash_interface_->userExpert();
@@ -776,31 +783,11 @@ private:
     			// try to publish
 				if (ee_state_pub_.trylock()) {
 
-			    // populate message//!
-				// ee_state_pub_.msg_.header.stamp = time;
-				tf::poseKDLToMsg(x_, ee_state_pub_.msg_.pose);
-				tf::twistKDLToMsg(x_dot_.GetTwist(), ee_state_pub_.msg_.twist);
-				ee_state_pub_.msg_.header.stamp = ros_time;
-				ee_state_pub_.msg_.pose.position.x = tool_vector_actual[0];
-				ee_state_pub_.msg_.pose.position.y = tool_vector_actual[1];
-				ee_state_pub_.msg_.pose.position.z = tool_vector_actual[2];
-				if (angle < 1e-16) {
-					ee_state_pub_.msg_.pose.orientation.x = 0;
-					ee_state_pub_.msg_.pose.orientation.y = 0;
-					ee_state_pub_.msg_.pose.orientation.z = 0;
-					ee_state_pub_.msg_.pose.orientation.w = 1;
-				} else {
-					ee_state_pub_.msg_.pose.orientation.x = (rx/angle) * std::sin(angle*0.5);
-					ee_state_pub_.msg_.pose.orientation.y = (ry/angle) * std::sin(angle*0.5);
-					ee_state_pub_.msg_.pose.orientation.z = (rz/angle) * std::sin(angle*0.5);
-					ee_state_pub_.msg_.pose.orientation.w = std::cos(angle*0.5);
-				}
-					ee_state_pub_.msg_.twist.linear.x = tcp_speed[0];
-					ee_state_pub_.msg_.twist.linear.y = tcp_speed[1];
-					ee_state_pub_.msg_.twist.linear.z = tcp_speed[2];
-					ee_state_pub_.msg_.twist.angular.x = tcp_speed[3];
-					ee_state_pub_.msg_.twist.angular.y = tcp_speed[4];
-					ee_state_pub_.msg_.twist.angular.z = tcp_speed[5];
+					// populate message//!
+					// ee_state_pub_.msg_.header.stamp = time;
+					tf::poseKDLToMsg(x_, ee_state_pub_.msg_.pose);
+					tf::twistKDLToMsg(x_dot_.GetTwist(), ee_state_pub_.msg_.twist);
+					ee_state_pub_.msg_.header.stamp = ros_time;
 					ee_state_pub_.unlockAndPublish();
 				}
 
@@ -837,6 +824,8 @@ private:
 					vel_command_.msg_.points[0].velocities[3] = q_dt_cmd_(3);
 					vel_command_.msg_.points[0].velocities[4] = q_dt_cmd_(4);
 					vel_command_.msg_.points[0].velocities[5] = q_dt_cmd_(5);
+					oFile <<q_dt_cmd_(0)<<","<<q_dt_cmd_(1)<<","<<q_dt_cmd_(2)<<","<<
+							q_dt_cmd_(3)<<","<<q_dt_cmd_(4)<<","<<q_dt_cmd_(5)<<std::endl;
 					vel_command_.unlockAndPublish();
 				}
 			}
